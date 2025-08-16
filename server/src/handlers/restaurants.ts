@@ -1,11 +1,27 @@
+import { db } from '../db';
+import { restaurantsTable, usersTable } from '../db/schema';
 import { type CreateRestaurantInput, type UpdateRestaurantInput, type Restaurant } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function createRestaurant(input: CreateRestaurantInput): Promise<Restaurant> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to create a new restaurant for a partner.
-    // Should validate partner ownership and persist restaurant data in the database.
-    return Promise.resolve({
-        id: 1,
+  try {
+    // First verify that the partner exists and has 'partner' role
+    const partner = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.id, input.partner_id))
+      .execute();
+
+    if (partner.length === 0) {
+      throw new Error(`Partner with ID ${input.partner_id} not found`);
+    }
+
+    if (partner[0].role !== 'partner') {
+      throw new Error(`User with ID ${input.partner_id} is not a partner`);
+    }
+
+    // Insert the restaurant record
+    const result = await db.insert(restaurantsTable)
+      .values({
         partner_id: input.partner_id,
         name: input.name,
         description: input.description,
@@ -13,10 +29,17 @@ export async function createRestaurant(input: CreateRestaurantInput): Promise<Re
         phone: input.phone,
         email: input.email,
         opening_hours: input.opening_hours,
-        cuisine_type: input.cuisine_type,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Restaurant);
+        cuisine_type: input.cuisine_type
+      })
+      .returning()
+      .execute();
+
+    const restaurant = result[0];
+    return restaurant;
+  } catch (error) {
+    console.error('Restaurant creation failed:', error);
+    throw error;
+  }
 }
 
 export async function updateRestaurant(input: UpdateRestaurantInput): Promise<Restaurant> {
